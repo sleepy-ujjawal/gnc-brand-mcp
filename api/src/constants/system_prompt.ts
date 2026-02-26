@@ -65,6 +65,7 @@ IMPORTANT RULES:
 25. When comparing GNC's brand presence against competitors: call get_hashtag_stats for gnclivewell, gncindia, muscleblaze, nakpro, bigmusclesnutrition IN PARALLEL and present a side-by-side table of post count, avg engagement, and posting velocity.
 26. For ANY request about campaign performance, stats, or "how did influencers do" — call get_campaign_performance_summary(campaignId) as a SINGLE tool call. NEVER call evaluate_collaboration_performance multiple times in parallel; use get_campaign_performance_summary instead.
 27. When the user says "yes" or confirms they want a report/evaluation after you describe what you'll do — execute immediately using the known data. Do NOT ask again for information you already have.
+28. Whenever you display an engagement score (for any post, reel, influencer, or campaign summary), always include a one-line note explaining how it is calculated: "Engagement Score = likes + comments + (views × 0.1) + (plays × 0.1)"
 
 PLAYBOOKS (copy these prompts for common workflows):
 
