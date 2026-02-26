@@ -23,7 +23,7 @@ async function createIndexes() {
   const profiles = getCollection('ig_profiles');
   await profiles.createIndex({ username: 1 }, { unique: true });
   await recreateTTLIndex('ig_profiles', 'cachedAt', TTL_SECONDS.PROFILES);
-  console.log('  ig_profiles: 2 indexes (TTL: 24h)');
+  console.log('  ig_profiles: 2 indexes (TTL: 30d)');
 
   // ig_posts — TTL: 6 hours (was 10 min)
   const posts = getCollection('ig_posts');
@@ -32,7 +32,7 @@ async function createIndexes() {
   await posts.createIndex({ engagementScore: -1, timestamp: -1 });
   await posts.createIndex({ caption: 'text' });
   await recreateTTLIndex('ig_posts', 'cachedAt', TTL_SECONDS.POSTS);
-  console.log('  ig_posts: 5 indexes (TTL: 6h)');
+  console.log('  ig_posts: 5 indexes (TTL: 30d)');
 
   // ig_reels — TTL: 6 hours (was 10 min)
   const reels = getCollection('ig_reels');
@@ -40,7 +40,7 @@ async function createIndexes() {
   await reels.createIndex({ username: 1, playsCount: -1 });
   await reels.createIndex({ engagementScore: -1 });
   await recreateTTLIndex('ig_reels', 'cachedAt', TTL_SECONDS.REELS);
-  console.log('  ig_reels: 4 indexes (TTL: 6h)');
+  console.log('  ig_reels: 4 indexes (TTL: 30d)');
 
   // ig_hashtag_posts — TTL: 12 hours (was 10 min)
   const hashtagPosts = getCollection('ig_hashtag_posts');
@@ -50,19 +50,19 @@ async function createIndexes() {
   await hashtagPosts.createIndex({ sourceHashtag: 1, username: 1 });
   await hashtagPosts.createIndex({ caption: 'text' });
   await recreateTTLIndex('ig_hashtag_posts', 'cachedAt', TTL_SECONDS.HASHTAG_POSTS);
-  console.log('  ig_hashtag_posts: 6 indexes (TTL: 12h)');
+  console.log('  ig_hashtag_posts: 6 indexes (TTL: 30d)');
 
   // ig_hashtag_stats — TTL: 12 hours (was 10 min)
   const hashtagStats = getCollection('ig_hashtag_stats');
   await hashtagStats.createIndex({ hashtag: 1 }, { unique: true });
   await recreateTTLIndex('ig_hashtag_stats', 'cachedAt', TTL_SECONDS.HASHTAG_STATS);
-  console.log('  ig_hashtag_stats: 2 indexes (TTL: 12h)');
+  console.log('  ig_hashtag_stats: 2 indexes (TTL: 30d)');
 
   // ig_hashtag_posts_meta — TTL: 12 hours (was 10 min)
   const hashtagMeta = getCollection('ig_hashtag_posts_meta');
   await hashtagMeta.createIndex({ hashtag: 1 }, { unique: true });
   await recreateTTLIndex('ig_hashtag_posts_meta', 'cachedAt', TTL_SECONDS.HASHTAG_META);
-  console.log('  ig_hashtag_posts_meta: 2 indexes (TTL: 12h)');
+  console.log('  ig_hashtag_posts_meta: 2 indexes (TTL: 30d)');
 
   // ─── New Collections ─────────────────────────────────────────────────────
 
