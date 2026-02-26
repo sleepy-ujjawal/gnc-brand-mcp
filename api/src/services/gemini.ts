@@ -338,9 +338,9 @@ export function trimHistory(history: Content[]): Content[] {
         // Gemini 3 thought texts can be tens of thousands of tokens — strip the text
         // but keep the thoughtSignature blob (self-contained; does not need its text).
         // This prevents session history from ballooning over multi-turn conversations.
-        const part = p as Record<string, unknown>;
+        const part = p as unknown as Record<string, unknown>;
         if (part.thought === true && part.thoughtSignature) {
-          return { thought: true, thoughtSignature: part.thoughtSignature };
+          return { thought: true, thoughtSignature: part.thoughtSignature } as unknown as Part;
         }
         if ('functionResponse' in p && p.functionResponse) {
           const resp = p.functionResponse.response as Record<string, unknown> | undefined;
