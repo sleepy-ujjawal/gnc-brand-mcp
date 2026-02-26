@@ -30,6 +30,17 @@ export function parseMentions(caption: string): string[] {
   return matches ? matches.map(m => m.toLowerCase()) : [];
 }
 
+// Apify hashtag scraper returns type as 'Video', 'Image', 'Sidecar' etc.
+// Normalise to our internal 'reel' | 'post' so contentType filters work correctly.
+function normalizePostType(rawType: unknown, plays: number): 'reel' | 'post' {
+  if (rawType) {
+    const t = String(rawType).toLowerCase();
+    if (t === 'video' || t === 'reel' || t === 'clip') return 'reel';
+    if (t === 'image' || t === 'photo' || t === 'sidecar' || t === 'carousel_album' || t === 'post') return 'post';
+  }
+  return plays > 0 ? 'reel' : 'post';
+}
+
 export function transformPost(raw: Record<string, any>, sourceHashtag?: string): IGPost | IGHashtagPost {
   const caption = raw.caption ?? raw.text ?? '';
   // Instagram returns -1 for likesCount when likes are hidden — clamp to 0
@@ -41,7 +52,7 @@ export function transformPost(raw: Record<string, any>, sourceHashtag?: string):
   const base: IGPost = {
     postId: raw.id ?? raw.shortCode ?? raw.url ?? '',
     username: (raw.ownerUsername ?? raw.username ?? '').toLowerCase(),
-    type: raw.type ?? (plays > 0 ? 'reel' : 'post'),
+    type: normalizePostType(raw.type, plays),
     caption,
     hashtags: parseHashtags(caption),
     mentionedAccounts: parseMentions(caption),

@@ -53,8 +53,10 @@ export async function getTopPostsByReach(args: {
   const match: Record<string, unknown> = { timestamp: { $gte: cutoff } };
   if (args.scope === 'hashtag') match.sourceHashtag = args.scopeValue;
   else match.username = args.scopeValue.toLowerCase();
-  if (args.contentType === 'reel') match.type = 'reel';
-  else if (args.contentType === 'post') match.type = { $ne: 'reel' };
+  // Match both normalised ('reel'/'post') and legacy Apify values ('Video'/'Image'/'Sidecar')
+  // so that existing cached docs are included regardless of when they were stored.
+  if (args.contentType === 'reel') match.type = { $in: ['reel', 'Video', 'video', 'Clip', 'clip'] };
+  else if (args.contentType === 'post') match.type = { $nin: ['reel', 'Video', 'video', 'Clip', 'clip'] };
   const metricMap: Record<string, string> = { engagement: 'engagementScore', likes: 'likesCount', comments: 'commentsCount', views: 'viewsCount', plays: 'playsCount' };
   const sortField = metricMap[args.metric] ?? 'engagementScore';
   const results = await coll.find(match).sort({ [sortField]: -1 }).limit(args.limit).toArray();

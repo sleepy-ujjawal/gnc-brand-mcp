@@ -2,14 +2,21 @@ import { z } from 'zod';
 
 const username = z.string().min(1).max(50).transform(u => u.replace(/^@/, '').toLowerCase());
 const hashtag = z.string().min(1).transform(h => h.replace(/^#/, '').toLowerCase());
-const limit10 = z.number().int().min(1).max(10).default(10);
-const days = z.number().int().min(1).max(90);
+
+// Gemini may pass integers as floats (e.g. 10.0). z.preprocess rounds before .int() validates.
+const safeInt = (min: number, max: number, def?: number) => {
+  const base = z.preprocess(v => typeof v === 'number' ? Math.round(v) : Number(v), z.number().int().min(min).max(max));
+  return def !== undefined ? base.default(def) : base;
+};
+
+const limit10 = safeInt(1, 10, 10);
+const days = safeInt(1, 90);
 
 export const Schemas = {
   get_profile: z.object({ username }),
-  get_user_posts: z.object({ username, resultsLimit: z.number().int().min(1).max(50).default(20) }),
-  get_user_reels: z.object({ username, resultsLimit: z.number().int().min(1).max(30).default(15) }),
-  get_hashtag_posts: z.object({ hashtag, resultsLimit: z.number().int().min(1).max(100).default(50) }),
+  get_user_posts: z.object({ username, resultsLimit: safeInt(1, 50, 20) }),
+  get_user_reels: z.object({ username, resultsLimit: safeInt(1, 30, 15) }),
+  get_hashtag_posts: z.object({ hashtag, resultsLimit: safeInt(1, 100, 50) }),
   get_hashtag_stats: z.object({ hashtag }),
   check_post: z.object({ postUrl: z.string().url() }),
   get_top_posts_by_reach: z.object({
@@ -18,7 +25,7 @@ export const Schemas = {
     timeframeDays: days.default(7),
     metric: z.enum(['engagement', 'likes', 'comments', 'views', 'plays']).default('engagement'),
     contentType: z.enum(['reel', 'post', 'all']).default('all'),
-    limit: z.number().int().min(1).max(25).default(10),
+    limit: safeInt(1, 25, 10),
   }),
   get_brand_mentions: z.object({
     brandKeywords: z.array(z.string().min(1)).min(1).max(10),
@@ -29,8 +36,8 @@ export const Schemas = {
   find_top_influencers: z.object({
     hashtags: z.array(hashtag).min(1).max(10),
     brandKeywords: z.array(z.string()).max(10).optional(),
-    minFollowers: z.number().int().min(0).optional(),
-    maxFollowers: z.number().int().min(0).optional(),
+    minFollowers: safeInt(0, 100_000_000).optional(),
+    maxFollowers: safeInt(0, 100_000_000).optional(),
     minEngagementRate: z.number().min(0).max(1).optional(),
     timeframeDays: days.default(30),
     influencerTier: z.enum(['nano', 'micro', 'macro', 'mega', 'all']).default('all'),
@@ -40,8 +47,8 @@ export const Schemas = {
   discover_influencers: z.object({
     niche: z.string().min(1).max(100),
     country: z.string().default('india'),
-    minFollowers: z.number().int().min(0).default(100000),
-    limit: z.number().int().min(1).max(25).default(10),
+    minFollowers: safeInt(0, 100_000_000, 100000),
+    limit: safeInt(1, 25, 10),
   }),
   check_user_topic_posts: z.object({
     username,
@@ -51,14 +58,14 @@ export const Schemas = {
   }),
   expand_network: z.object({
     seeds: z.array(username).min(1).max(10),
-    minFollowers: z.number().int().min(0).default(100000),
+    minFollowers: safeInt(0, 100_000_000, 100000),
     country: z.string().default('india'),
-    limit: z.number().int().min(1).max(25).default(15),
+    limit: safeInt(1, 25, 15),
   }),
   get_mention_network: z.object({
     hashtags: z.array(hashtag).min(1).max(10),
-    minMentions: z.number().int().min(1).default(2),
-    minFollowers: z.number().int().min(0).optional(),
+    minMentions: safeInt(1, 1000, 2),
+    minFollowers: safeInt(0, 100_000_000).optional(),
     limit: limit10,
     excludeHandles: z.array(z.string()).max(20).optional(),
   }),
@@ -117,7 +124,7 @@ export const Schemas = {
   }),
   get_engagement_timeline: z.object({
     postUrl: z.string().url(),
-    limit: z.number().int().min(1).max(100).default(50),
+    limit: safeInt(1, 100, 50),
   }),
   mine_competitor_hashtags: z.object({
     competitorHashtags: z.array(hashtag).min(1).max(10),
