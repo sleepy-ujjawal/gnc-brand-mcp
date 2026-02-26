@@ -30,7 +30,7 @@ function getModel(): GenerativeModel {
   if (!apiKey) throw new Error('GEMINI_API_KEY not configured');
   const client = new GoogleGenerativeAI(apiKey);
   _model = client.getGenerativeModel({
-    model: 'gemini-3-flash-preview',
+    model: 'gemini-2.5-flash-preview-04-17',
     systemInstruction: SYSTEM_PROMPT,
     tools: [{ functionDeclarations: TOOL_DECLARATIONS }],
   });
@@ -327,21 +327,11 @@ export function trimHistory(history: Content[]): Content[] {
     role: entry.role,
     parts: entry.parts
       .filter(p => {
-        // Gemini 3: thought parts that carry a thoughtSignature are cryptographically
-        // linked to the function calls that follow — they MUST be kept in history or
-        // the next request fails with "missing thought_signature" (400 Bad Request).
-        // Only strip plain thought-text parts that have no signature (Gemini 2.x style).
-        if ('thought' in p && !(p as Record<string, unknown>).thoughtSignature) return false;
+        // Strip thought parts — Gemini 2.5 Flash internal reasoning, not needed in history
+        if ('thought' in p) return false;
         return true;
       })
       .map(p => {
-        // Gemini 3 thought texts can be tens of thousands of tokens — strip the text
-        // but keep the thoughtSignature blob (self-contained; does not need its text).
-        // This prevents session history from ballooning over multi-turn conversations.
-        const part = p as unknown as Record<string, unknown>;
-        if (part.thought === true && part.thoughtSignature) {
-          return { thought: true, thoughtSignature: part.thoughtSignature } as unknown as Part;
-        }
         if ('functionResponse' in p && p.functionResponse) {
           const resp = p.functionResponse.response as Record<string, unknown> | undefined;
           if (resp && Array.isArray(resp.posts) && resp.posts.length > 3) {
