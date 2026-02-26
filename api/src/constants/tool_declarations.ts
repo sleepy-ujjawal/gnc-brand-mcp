@@ -278,7 +278,7 @@ export const TOOL_DECLARATIONS: FunctionDeclaration[] = [
       type: SchemaType.OBJECT,
       required: ['usernames', 'brandKeywords'],
       properties: {
-        usernames: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING }, description: 'Instagram handles to fetch reels from (max 15). Use known collaborators or top influencer handles.' },
+        usernames: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING }, description: 'Instagram handles to fetch reels from (max 10). Use known collaborators or top influencer handles.' },
         brandKeywords: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING }, description: 'Keywords to search for in reel captions e.g. ["GNC", "gnclivewell", "MuscleBlaze"]' },
         timeframeDays: { type: SchemaType.NUMBER, description: 'Days to look back. Default 30.' },
         limit: { type: SchemaType.NUMBER, description: 'Max reels to return. Default 10.' },

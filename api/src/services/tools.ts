@@ -407,7 +407,7 @@ export async function executeExpandNetwork(raw: unknown) {
 // Instagram's hashtag feed only surfaces feed posts — Reels live in a separate
 // section that the hashtag scraper never hits.  The only reliable path to
 // brand/competitor reels is: username → reel scraper → caption keyword filter.
-// This tool does that in one call for up to 15 accounts, cache-first.
+// This tool does that in one call for up to 10 accounts, cache-first.
 
 export async function getBrandReels(raw: unknown) {
   const { usernames, brandKeywords, timeframeDays, limit } = Schemas.get_brand_reels.parse(raw);
