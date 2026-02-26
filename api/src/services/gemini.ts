@@ -30,7 +30,7 @@ function getModel(): GenerativeModel {
   if (!apiKey) throw new Error('GEMINI_API_KEY not configured');
   const client = new GoogleGenerativeAI(apiKey);
   _model = client.getGenerativeModel({
-    model: 'gemini-2.5-flash',
+    model: 'gemini-3-flash-preview',
     systemInstruction: SYSTEM_PROMPT,
     tools: [{ functionDeclarations: TOOL_DECLARATIONS }],
   });
@@ -64,27 +64,27 @@ export type EmitFn = (event: OrchestrateEvent) => void;
 
 // ─── Human-readable tool labels for the UI ───────────────────────────────────
 const TOOL_LABELS: Record<string, string> = {
-  get_profile:            'Fetching Instagram profile',
-  get_user_posts:         'Fetching recent posts',
-  get_user_reels:         'Fetching recent reels',
-  get_hashtag_posts:      'Fetching hashtag posts',
-  get_hashtag_stats:      'Analysing hashtag statistics',
-  check_post:             'Verifying post',
+  get_profile: 'Fetching Instagram profile',
+  get_user_posts: 'Fetching recent posts',
+  get_user_reels: 'Fetching recent reels',
+  get_hashtag_posts: 'Fetching hashtag posts',
+  get_hashtag_stats: 'Analysing hashtag statistics',
+  check_post: 'Verifying post',
   get_top_posts_by_reach: 'Ranking posts by reach',
-  get_brand_mentions:     'Scanning brand mentions',
-  find_top_influencers:   'Ranking influencers by engagement',
+  get_brand_mentions: 'Scanning brand mentions',
+  find_top_influencers: 'Ranking influencers by engagement',
   check_user_topic_posts: 'Scanning creator content',
-  discover_influencers:   'Searching Google for influencers',
-  expand_network:         'Expanding network via Instagram recommendations',
-  get_mention_network:    'Mining peer mention network',
-  register_campaign_post:             'Registering campaign posts',
-  monitor_campaign_post:              'Monitoring campaign post',
-  get_campaign_compliance_report:       'Generating compliance report',
-  evaluate_collaboration_performance:   'Evaluating collaboration performance',
-  get_campaign_performance_summary:     'Generating campaign performance summary',
-  get_continuation_recommendation:      'Computing continuation recommendation',
-  get_engagement_timeline:              'Loading engagement timeline',
-  mine_competitor_hashtags:             'Mining competitor hashtags',
+  discover_influencers: 'Searching Google for influencers',
+  expand_network: 'Expanding network via Instagram recommendations',
+  get_mention_network: 'Mining peer mention network',
+  register_campaign_post: 'Registering campaign posts',
+  monitor_campaign_post: 'Monitoring campaign post',
+  get_campaign_compliance_report: 'Generating compliance report',
+  evaluate_collaboration_performance: 'Evaluating collaboration performance',
+  get_campaign_performance_summary: 'Generating campaign performance summary',
+  get_continuation_recommendation: 'Computing continuation recommendation',
+  get_engagement_timeline: 'Loading engagement timeline',
+  mine_competitor_hashtags: 'Mining competitor hashtags',
 };
 
 function toolLabel(name: string) { return TOOL_LABELS[name] ?? name; }
@@ -99,27 +99,27 @@ function thinkingMessage(turn: number, prevToolCount: number): string {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const DISPATCH: Record<string, (args: any) => Promise<unknown>> = {
-  get_profile:            executeGetProfile,
-  get_user_posts:         executeGetUserPosts,
-  get_user_reels:         executeGetUserReels,
-  get_hashtag_posts:      executeGetHashtagPosts,
-  get_hashtag_stats:      executeGetHashtagStats,
-  check_post:             executeCheckPost,
+  get_profile: executeGetProfile,
+  get_user_posts: executeGetUserPosts,
+  get_user_reels: executeGetUserReels,
+  get_hashtag_posts: executeGetHashtagPosts,
+  get_hashtag_stats: executeGetHashtagStats,
+  check_post: executeCheckPost,
   get_top_posts_by_reach: getTopPostsByReach,
-  get_brand_mentions:     getBrandMentions,
-  find_top_influencers:   findTopInfluencers,
+  get_brand_mentions: getBrandMentions,
+  find_top_influencers: findTopInfluencers,
   check_user_topic_posts: checkUserTopicPosts,
-  discover_influencers:   executeDiscoverInfluencers,
-  expand_network:         executeExpandNetwork,
-  get_mention_network:    getMentionNetwork,
-  register_campaign_post:             registerCampaignPosts,
-  monitor_campaign_post:              monitorCampaignPost,
-  get_campaign_compliance_report:     getCampaignComplianceReport,
+  discover_influencers: executeDiscoverInfluencers,
+  expand_network: executeExpandNetwork,
+  get_mention_network: getMentionNetwork,
+  register_campaign_post: registerCampaignPosts,
+  monitor_campaign_post: monitorCampaignPost,
+  get_campaign_compliance_report: getCampaignComplianceReport,
   evaluate_collaboration_performance: evaluateCollaborationPerformance,
-  get_campaign_performance_summary:   getCampaignPerformanceSummary,
-  get_continuation_recommendation:    getContinuationRecommendation,
-  get_engagement_timeline:            getEngagementTimeline,
-  mine_competitor_hashtags:           mineCompetitorHashtags,
+  get_campaign_performance_summary: getCampaignPerformanceSummary,
+  get_continuation_recommendation: getContinuationRecommendation,
+  get_engagement_timeline: getEngagementTimeline,
+  mine_competitor_hashtags: mineCompetitorHashtags,
 };
 
 async function executeTool(name: string, args: unknown, emit?: EmitFn): Promise<{ result: unknown; info: ToolCallInfo }> {
@@ -213,9 +213,9 @@ export async function orchestrate(
       // No more tool calls — text was already streamed; reconstruct full string for REST callers
       const text = textChunks.join('')
         || candidate.content.parts
-            .filter(p => 'text' in p && !(p as { thought?: boolean }).thought)
-            .map(p => (p as { text: string }).text)
-            .join('')
+          .filter(p => 'text' in p && !(p as { thought?: boolean }).thought)
+          .map(p => (p as { text: string }).text)
+          .join('')
         || 'Done.';
       emit?.({ type: 'answer', text, toolCalls: allToolCalls });
       return { text, history, toolCalls: allToolCalls };
