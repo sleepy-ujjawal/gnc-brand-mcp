@@ -403,6 +403,80 @@ export async function executeExpandNetwork(raw: unknown) {
   };
 }
 
+// ─── Brand Reels Scanner ─────────────────────────────────────────────────────
+// Instagram's hashtag feed only surfaces feed posts — Reels live in a separate
+// section that the hashtag scraper never hits.  The only reliable path to
+// brand/competitor reels is: username → reel scraper → caption keyword filter.
+// This tool does that in one call for up to 15 accounts, cache-first.
+
+export async function getBrandReels(raw: unknown) {
+  const { usernames, brandKeywords, timeframeDays, limit } = Schemas.get_brand_reels.parse(raw);
+  const cutoff = new Date(Date.now() - timeframeDays * 86_400_000);
+  const keywordRegexes = brandKeywords.map(kw => new RegExp(kw, 'i'));
+  const reelsColl = getCollection('ig_reels');
+
+  // Fetch reels for every username in parallel — cache-first (TTL 6h)
+  const perUser = await Promise.allSettled(
+    usernames.map(async (username) => {
+      const cached = await reelsColl
+        .find({ username, cachedAt: { $gt: new Date(Date.now() - TTL.REELS) } })
+        .toArray();
+
+      let reels: Record<string, unknown>[];
+      let cacheHit = true;
+
+      if (cached.length) {
+        reels = cached.map(d => { const { _id, ...p } = d; return p; });
+      } else {
+        cacheHit = false;
+        try {
+          const items = await runActor<Record<string, unknown>>({
+            actorId: ACTORS.REELS, input: { username: [username], resultsLimit: 20 },
+          });
+          const transformed = items.map(p => transformPost(p));
+          const ops = transformed.map(p => ({
+            updateOne: { filter: { postId: p.postId }, update: { $set: { ...p, cachedAt: new Date() } }, upsert: true },
+          }));
+          if (ops.length) await reelsColl.bulkWrite(ops, { ordered: false });
+          reels = transformed as unknown as Record<string, unknown>[];
+        } catch {
+          reels = [];
+        }
+      }
+
+      // Filter by timeframe + brand keyword match in caption
+      const matching = reels.filter(r => {
+        const ts = r.timestamp instanceof Date ? r.timestamp : new Date(r.timestamp as string);
+        if (ts < cutoff) return false;
+        const caption = (r.caption as string ?? '').toLowerCase();
+        return keywordRegexes.some(re => re.test(caption));
+      });
+
+      return { username, matching, totalReels: reels.length, cacheHit };
+    })
+  );
+
+  const allMatches = perUser
+    .filter(r => r.status === 'fulfilled')
+    .flatMap(r => (r as PromiseFulfilledResult<{ matching: Record<string, unknown>[] }>).value.matching);
+
+  allMatches.sort((a, b) => ((b.engagementScore as number) ?? 0) - ((a.engagementScore as number) ?? 0));
+  const topReels = allMatches.slice(0, limit).map((r, i) => ({ rank: i + 1, ...r }));
+
+  const succeeded = perUser.filter(r => r.status === 'fulfilled') as PromiseFulfilledResult<{ username: string; totalReels: number; cacheHit: boolean }>[];
+  const cacheHits = succeeded.filter(r => r.value.cacheHit).length;
+  const usersWithReels = succeeded.filter(r => r.value.totalReels > 0).map(r => r.value.username);
+
+  return {
+    reels: topReels,
+    totalFound: allMatches.length,
+    usersChecked: succeeded.length,
+    usersWithReels,
+    cacheHits,
+    keywords: brandKeywords,
+  };
+}
+
 // ─── Error class for tool failures ──────────────────────────────────
 
 export class ToolError extends Error {

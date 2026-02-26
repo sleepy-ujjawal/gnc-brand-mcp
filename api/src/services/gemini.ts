@@ -4,7 +4,7 @@ import { TOOL_DECLARATIONS } from '../constants/tool_declarations.js';
 import {
   executeGetProfile, executeGetUserPosts, executeGetUserReels,
   executeGetHashtagPosts, executeGetHashtagStats, executeCheckPost,
-  executeDiscoverInfluencers, executeExpandNetwork, ToolError,
+  executeDiscoverInfluencers, executeExpandNetwork, getBrandReels, ToolError,
 } from './tools.js';
 import {
   getTopPostsByReach, getBrandMentions, findTopInfluencers, checkUserTopicPosts, getMentionNetwork,
@@ -85,6 +85,7 @@ const TOOL_LABELS: Record<string, string> = {
   get_continuation_recommendation: 'Computing continuation recommendation',
   get_engagement_timeline: 'Loading engagement timeline',
   mine_competitor_hashtags: 'Mining competitor hashtags',
+  get_brand_reels: 'Scanning reels for brand mentions',
 };
 
 function toolLabel(name: string) { return TOOL_LABELS[name] ?? name; }
@@ -112,6 +113,7 @@ const DISPATCH: Record<string, (args: any) => Promise<unknown>> = {
   discover_influencers: executeDiscoverInfluencers,
   expand_network: executeExpandNetwork,
   get_mention_network: getMentionNetwork,
+  get_brand_reels: getBrandReels,
   register_campaign_post: registerCampaignPosts,
   monitor_campaign_post: monitorCampaignPost,
   get_campaign_compliance_report: getCampaignComplianceReport,

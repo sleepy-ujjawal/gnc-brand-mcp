@@ -130,4 +130,10 @@ export const Schemas = {
     competitorHashtags: z.array(hashtag).min(1).max(10),
     limit: limit10,
   }),
+  get_brand_reels: z.object({
+    usernames: z.array(username).min(1).max(15),
+    brandKeywords: z.array(z.string().min(1)).min(1).max(10),
+    timeframeDays: days.default(30),
+    limit: safeInt(1, 25, 10),
+  }),
 };

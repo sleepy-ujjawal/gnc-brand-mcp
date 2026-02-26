@@ -271,4 +271,18 @@ export const TOOL_DECLARATIONS: FunctionDeclaration[] = [
       },
     },
   },
+  {
+    name: 'get_brand_reels',
+    description: 'Fetch Reels from specific Instagram accounts and filter by brand/competitor keyword mentions in captions. Use this when the user wants to find reels mentioning GNC, competitor brands, or specific keywords. Instagram hashtag scrapers only return feed posts — this is the only way to find brand reels. Provide known collaborator handles or handles from find_top_influencers results.',
+    parameters: {
+      type: SchemaType.OBJECT,
+      required: ['usernames', 'brandKeywords'],
+      properties: {
+        usernames: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING }, description: 'Instagram handles to fetch reels from (max 15). Use known collaborators or top influencer handles.' },
+        brandKeywords: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING }, description: 'Keywords to search for in reel captions e.g. ["GNC", "gnclivewell", "MuscleBlaze"]' },
+        timeframeDays: { type: SchemaType.NUMBER, description: 'Days to look back. Default 30.' },
+        limit: { type: SchemaType.NUMBER, description: 'Max reels to return. Default 10.' },
+      },
+    },
+  },
 ];
