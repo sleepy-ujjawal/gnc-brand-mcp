@@ -4,10 +4,16 @@
   "description": "GNC Brand Intelligence Bot API",
   "main": "build/index.js",
   "scripts": {
-    "build": "rm -rf build && tsc",
+    "build": "rm -rf build && tsc && cp -r src/scripts/seed-data build/scripts/seed-data",
     "start": "node build/index.js",
     "dev": "npx ts-node src/index.ts",
-    "create-indexes": "node build/scripts/createIndexes.js"
+    "create-indexes": "node build/scripts/createIndexes.js",
+    "seed:campaigns": "node build/scripts/seedCampaigns.js",
+    "seed:influencers": "node build/scripts/seedInfluencers.js",
+    "seed:posts": "node build/scripts/seedCampaignPosts.js",
+    "seed:all": "node build/scripts/populateAll.js",
+    "enrich": "node build/scripts/enrichData.js",
+    "demo:load": "node build/scripts/loadDemoData.js"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",

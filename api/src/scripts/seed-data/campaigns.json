@@ -1,0 +1,27 @@
+[
+  {
+    "campaignId": "gnc-summer-fitness-2025",
+    "name": "GNC Summer Fitness Challenge 2025",
+    "status": "active",
+    "startDate": "2025-04-01T00:00:00Z",
+    "endDate": "2025-07-31T23:59:59Z",
+    "requiredHashtags": [],
+    "requiredMentions": [],
+    "requiredTags": [],
+    "brandKeywords": ["GNC", "gnc", "GNC LiveWell", "GNC India"],
+    "budget": 500000,
+    "notes": "Summer fitness campaign targeting Indian fitness influencers"
+  },
+  {
+    "campaignId": "gnc-protein-launch-2025",
+    "name": "GNC Protein Range Launch 2025",
+    "status": "draft",
+    "startDate": "2025-06-01T00:00:00Z",
+    "endDate": "2025-09-30T23:59:59Z",
+    "requiredHashtags": ["gncprotein", "gnclivewell", "gncwheyprotein"],
+    "requiredMentions": ["gnclivewell", "guardiangnc"],
+    "requiredTags": ["gnclivewell"],
+    "brandKeywords": ["GNC", "gnc", "whey protein", "GNC protein"],
+    "notes": "Product launch campaign for new protein range"
+  }
+]

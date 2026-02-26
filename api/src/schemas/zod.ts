@@ -62,4 +62,65 @@ export const Schemas = {
     limit: limit10,
     excludeHandles: z.array(z.string()).max(20).optional(),
   }),
+
+  // ─── Campaign & Lifecycle Schemas ──────────────────────────────────
+
+  // REST-only: campaign CRUD
+  create_campaign: z.object({
+    campaignId: z.string().min(1).max(100).transform(s => s.toLowerCase().replace(/\s+/g, '-')),
+    name: z.string().min(1).max(200),
+    status: z.enum(['draft', 'active', 'completed', 'paused']).default('draft'),
+    startDate: z.coerce.date(),
+    endDate: z.coerce.date(),
+    requiredHashtags: z.array(hashtag).min(1).max(20),
+    requiredMentions: z.array(z.string().min(1).transform(u => u.replace(/^@/, '').toLowerCase())).default([]),
+    requiredTags: z.array(z.string().min(1).transform(u => u.replace(/^@/, '').toLowerCase())).default([]),
+    brandKeywords: z.array(z.string().min(1)).default(['GNC', 'gnc', 'GNC LiveWell']),
+    budget: z.number().min(0).optional(),
+    notes: z.string().max(2000).optional(),
+  }),
+  update_campaign: z.object({
+    name: z.string().min(1).max(200).optional(),
+    status: z.enum(['draft', 'active', 'completed', 'paused']).optional(),
+    startDate: z.coerce.date().optional(),
+    endDate: z.coerce.date().optional(),
+    requiredHashtags: z.array(hashtag).min(1).max(20).optional(),
+    requiredMentions: z.array(z.string().min(1).transform(u => u.replace(/^@/, '').toLowerCase())).optional(),
+    requiredTags: z.array(z.string().min(1).transform(u => u.replace(/^@/, '').toLowerCase())).optional(),
+    brandKeywords: z.array(z.string().min(1)).optional(),
+    budget: z.number().min(0).optional(),
+    notes: z.string().max(2000).optional(),
+  }),
+
+  // Gemini tools
+  register_campaign_post: z.object({
+    campaignId: z.string().min(1).transform(s => s.toLowerCase().replace(/\s+/g, '-')),
+    postUrls: z.array(z.string().url()).min(1).max(20),
+    usernameOverride: z.string().optional().transform(u => u?.replace(/^@/, '').toLowerCase()),
+  }),
+  get_campaign_performance_summary: z.object({
+    campaignId: z.string().min(1).transform(s => s.toLowerCase().replace(/\s+/g, '-')),
+  }),
+  monitor_campaign_post: z.object({
+    campaignId: z.string().min(1).transform(s => s.toLowerCase().replace(/\s+/g, '-')),
+    postUrl: z.string().url(),
+  }),
+  get_campaign_compliance_report: z.object({
+    campaignId: z.string().min(1).transform(s => s.toLowerCase().replace(/\s+/g, '-')),
+  }),
+  evaluate_collaboration_performance: z.object({
+    campaignId: z.string().min(1).transform(s => s.toLowerCase().replace(/\s+/g, '-')),
+    username,
+  }),
+  get_continuation_recommendation: z.object({
+    username,
+  }),
+  get_engagement_timeline: z.object({
+    postUrl: z.string().url(),
+    limit: z.number().int().min(1).max(100).default(50),
+  }),
+  mine_competitor_hashtags: z.object({
+    competitorHashtags: z.array(hashtag).min(1).max(10),
+    limit: limit10,
+  }),
 };

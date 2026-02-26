@@ -1,8 +1,10 @@
 import { getCollection } from './mongo.js';
 import { runActor } from './apify.js';
 import { ACTORS } from '../constants/actors.js';
+import { TTL } from '../constants/ttl.js';
 import { transformProfile } from './transform.js';
 import { writeCache } from '../middleware/cacheFirst.js';
+import { autoEnrollBatch } from './autoEnrich.js';
 
 export function classifyTier(followers: number): string {
   if (followers < 10_000) return 'nano';
@@ -13,10 +15,10 @@ export function classifyTier(followers: number): string {
 
 export async function getOrFetchProfile(username: string) {
   const coll = getCollection('ig_profiles');
-  const cached = await coll.findOne({ username, cachedAt: { $gt: new Date(Date.now() - 3600_000) } });
+  const cached = await coll.findOne({ username, cachedAt: { $gt: new Date(Date.now() - TTL.PROFILES) } });
   if (cached) return cached;
   try {
-    const raw = await runActor<Record<string, unknown>>({ actorId: ACTORS.PROFILE, input: { usernames: [username] }, timeoutSecs: 30 });
+    const raw = await runActor<Record<string, unknown>>({ actorId: ACTORS.PROFILE, input: { usernames: [username] }, timeoutSecs: 60 });
     if (raw.length) {
       const profile = transformProfile(raw[0]);
       writeCache('ig_profiles', { username: profile.username }, profile as unknown as Record<string, unknown>).catch(() => {});
@@ -24,6 +26,21 @@ export async function getOrFetchProfile(username: string) {
     }
   } catch { /* best-effort */ }
   return null;
+}
+
+/**
+ * Batch-load profiles from the MongoDB cache for a list of usernames.
+ * Returns a Map<username, profile> for cache hits.
+ * Callers then only need individual Apify fetches for the misses.
+ */
+export async function batchLoadCachedProfiles(usernames: string[]): Promise<Map<string, Record<string, unknown>>> {
+  if (!usernames.length) return new Map();
+  const coll = getCollection('ig_profiles');
+  const cutoff = new Date(Date.now() - TTL.PROFILES);
+  const docs = await coll
+    .find({ username: { $in: usernames }, cachedAt: { $gt: cutoff } })
+    .toArray();
+  return new Map(docs.map(d => [d.username as string, d as Record<string, unknown>]));
 }
 
 export async function getTopPostsByReach(args: {
@@ -56,9 +73,11 @@ export async function getBrandMentions(args: {
   if (args.includeHandleMentions) {
     args.brandKeywords.forEach(kw => orConds.push({ caption: { $regex: '@' + kw, $options: 'i' } }));
   }
+  // Cap at 500 to avoid loading an unbounded result set into memory.
+  // topMentions only uses first 10; estimatedReach/totalMentions use the capped set.
   const mentions = await coll.find({
     sourceHashtag: { $in: args.hashtags }, timestamp: { $gte: cutoff }, $or: orConds,
-  }).sort({ engagementScore: -1 }).toArray();
+  }).sort({ engagementScore: -1 }).limit(500).toArray();
   const byDay: Record<string, number> = {};
   for (const m of mentions) {
     const day = new Date(m.timestamp as string).toISOString().slice(0, 10);
@@ -125,10 +144,14 @@ export async function findTopInfluencers(args: {
   ];
   const candidates = await coll.aggregate(pipeline).toArray();
 
+  // Batch-load all cached profiles in one query; only fall back to Apify for misses
+  const candidateUsernames = candidates.map(c => c._id as string);
+  const profileCache = await batchLoadCachedProfiles(candidateUsernames);
+
   // Enrich profiles in parallel — fetch enough to satisfy limit after filtering
   const enriched = await Promise.allSettled(
     candidates.map(async (c) => {
-      const profile = await getOrFetchProfile(c._id as string);
+      const profile = profileCache.get(c._id as string) ?? await getOrFetchProfile(c._id as string);
       const fc = profile?.followersCount as number ?? 0;
       const engRate = fc > 0 ? ((c.avgLikes as number) + (c.avgComments as number)) / fc : null;
 
@@ -165,6 +188,12 @@ export async function findTopInfluencers(args: {
     .map((r) => (r as PromiseFulfilledResult<any>).value)
     .slice(0, args.limit ?? 10)
     .map((v, i) => ({ rank: i + 1, ...v }));
+
+  // Auto-enroll newly discovered influencers as prospects (fire-and-forget)
+  autoEnrollBatch(
+    (results as Record<string, unknown>[]).map(r => ({ username: r.username as string, followersCount: r.followersCount as number, tags: ['source:find_top_influencers'] })),
+    'find_top_influencers',
+  ).catch(() => {});
 
   return { influencers: results };
 }
@@ -221,10 +250,14 @@ export async function getMentionNetwork(args: {
   const topMentioned = await coll.aggregate(pipeline).toArray();
   const filtered = topMentioned.filter(m => !excludeSet.has(m._id as string));
 
+  // Batch-load cached profiles in one query; only fall back to Apify for misses
+  const mentionUsernames = filtered.map(m => m._id as string);
+  const profileCache = await batchLoadCachedProfiles(mentionUsernames);
+
   // Best-effort profile enrichment (Apify only on cache miss)
   const enriched = await Promise.allSettled(
     filtered.map(async (m) => {
-      const profile = await getOrFetchProfile(m._id as string);
+      const profile = profileCache.get(m._id as string) ?? await getOrFetchProfile(m._id as string);
       const fc = (profile?.followersCount as number) ?? 0;
       if (args.minFollowers && fc > 0 && fc < args.minFollowers) return null;
       return {
@@ -243,6 +276,12 @@ export async function getMentionNetwork(args: {
     .map(r => (r as PromiseFulfilledResult<Record<string, unknown>>).value)
     .slice(0, limit)
     .map((v, i) => ({ rank: i + 1, ...v }));
+
+  // Auto-enroll newly discovered influencers as prospects (fire-and-forget)
+  autoEnrollBatch(
+    (results as Record<string, unknown>[]).map(r => ({ username: r.username as string, followersCount: r.followersCount as number, tags: ['source:get_mention_network'] })),
+    'get_mention_network',
+  ).catch(() => {});
 
   return {
     topMentioned: results,

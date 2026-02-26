@@ -1,10 +1,12 @@
 import { Schemas } from '../schemas/zod.js';
 import { runActor } from './apify.js';
 import { ACTORS } from '../constants/actors.js';
+import { TTL } from '../constants/ttl.js';
 import { transformPost, transformProfile } from './transform.js';
 import { getCollection } from './mongo.js';
 import { writeCache } from '../middleware/cacheFirst.js';
 import { INDIA_LOCATIONS, classifyTier } from './analytics.js';
+import { autoEnrollProspect, autoEnrollBatch, autoEnrollFromHashtagPosts } from './autoEnrich.js';
 
 // ─── Phase 1: Data Fetching Tools ────────────────────────────────────
 
@@ -13,13 +15,17 @@ export async function executeGetProfile(raw: unknown) {
 
   // Check cache first
   const coll = getCollection('ig_profiles');
-  const cached = await coll.findOne({ username, cachedAt: { $gt: new Date(Date.now() - 60 * 60 * 1000) } });
+  const cached = await coll.findOne({ username, cachedAt: { $gt: new Date(Date.now() - TTL.PROFILES) } });
   if (cached) { const { _id, ...doc } = cached; return { ...doc, cacheHit: true }; }
 
   const items = await runActor<Record<string, unknown>>({ actorId: ACTORS.PROFILE, input: { usernames: [username] } });
   if (!items.length) throw new ToolError(`Profile not found: ${username}`, 'NOT_FOUND');
   const profile = transformProfile(items[0]);
   await writeCache('ig_profiles', { username: profile.username }, profile as unknown as Record<string, unknown>);
+
+  // Auto-enroll as prospect if not already tracked (fire-and-forget)
+  autoEnrollProspect(profile.username, 'get_profile', { followersCount: profile.followersCount }).catch(() => {});
+
   return { ...profile, cacheHit: false, cachedAt: new Date().toISOString() };
 }
 
@@ -28,7 +34,7 @@ export async function executeGetUserPosts(raw: unknown) {
 
   // Check cache
   const postsColl = getCollection('ig_posts');
-  const cachedPosts = await postsColl.find({ username, cachedAt: { $gt: new Date(Date.now() - 10 * 60_000) } }).toArray();
+  const cachedPosts = await postsColl.find({ username, cachedAt: { $gt: new Date(Date.now() - TTL.POSTS) } }).toArray();
   if (cachedPosts.length) {
     const posts = cachedPosts.map(d => { const { _id, ...p } = d; return p; });
     const avg = posts.length ? Math.round(posts.reduce((s, p) => s + (p.engagementScore as number), 0) / posts.length) : 0;
@@ -47,7 +53,7 @@ export async function executeGetUserReels(raw: unknown) {
   const { username, resultsLimit } = Schemas.get_user_reels.parse(raw);
 
   const reelsColl = getCollection('ig_reels');
-  const cachedReels = await reelsColl.find({ username, cachedAt: { $gt: new Date(Date.now() - 10 * 60_000) } }).toArray();
+  const cachedReels = await reelsColl.find({ username, cachedAt: { $gt: new Date(Date.now() - TTL.REELS) } }).toArray();
   if (cachedReels.length) {
     const reels = cachedReels.map(d => { const { _id, ...p } = d; return p; });
     const avg = reels.length ? Math.round(reels.reduce((s, p) => s + (p.playsCount as number), 0) / reels.length) : 0;
@@ -67,10 +73,10 @@ export async function executeGetHashtagPosts(raw: unknown) {
 
   // Check meta cache
   const metaColl = getCollection('ig_hashtag_posts_meta');
-  const meta = await metaColl.findOne({ hashtag, cachedAt: { $gt: new Date(Date.now() - 10 * 60_000) } });
+  const meta = await metaColl.findOne({ hashtag, cachedAt: { $gt: new Date(Date.now() - TTL.HASHTAG_META) } });
   if (meta) {
     const postsColl = getCollection('ig_hashtag_posts');
-    const posts = await postsColl.find({ sourceHashtag: hashtag, cachedAt: { $gt: new Date(Date.now() - 10 * 60_000) } }).toArray();
+    const posts = await postsColl.find({ sourceHashtag: hashtag, cachedAt: { $gt: new Date(Date.now() - TTL.HASHTAG_POSTS) } }).toArray();
     const cleaned = posts.map(d => { const { _id, ...p } = d; return p; });
     return { hashtag, posts: cleaned, totalFetched: cleaned.length, cacheHit: true };
   }
@@ -81,6 +87,10 @@ export async function executeGetHashtagPosts(raw: unknown) {
   const ops = posts.map(p => ({ updateOne: { filter: { postId: p.postId, sourceHashtag: hashtag }, update: { $set: { ...p, cachedAt: new Date() } }, upsert: true } }));
   if (ops.length) await coll.bulkWrite(ops, { ordered: false });
   await writeCache('ig_hashtag_posts_meta', { hashtag }, { hashtag, resultsLimit, totalFetched: posts.length });
+
+  // Auto-enroll authors from GNC hashtags as prospects (fire-and-forget)
+  autoEnrollFromHashtagPosts(posts, hashtag).catch(() => {});
+
   return { hashtag, posts, totalFetched: posts.length, cacheHit: false, cachedAt: new Date().toISOString() };
 }
 
@@ -89,12 +99,12 @@ export async function executeGetHashtagStats(raw: unknown) {
 
   // Check cache
   const statsColl = getCollection('ig_hashtag_stats');
-  const cached = await statsColl.findOne({ hashtag, cachedAt: { $gt: new Date(Date.now() - 10 * 60_000) } });
+  const cached = await statsColl.findOne({ hashtag, cachedAt: { $gt: new Date(Date.now() - TTL.HASHTAG_STATS) } });
   if (cached) { const { _id, ...doc } = cached; return { ...doc, cacheHit: true }; }
 
   const coll = getCollection('ig_hashtag_posts');
   const pipeline = [
-    { $match: { sourceHashtag: hashtag, cachedAt: { $gt: new Date(Date.now() - 10 * 60_000) } } },
+    { $match: { sourceHashtag: hashtag, cachedAt: { $gt: new Date(Date.now() - TTL.HASHTAG_POSTS) } } },
     { $group: {
       _id: '$sourceHashtag',
       totalPostCount: { $sum: 1 },
@@ -129,16 +139,30 @@ export async function executeGetHashtagStats(raw: unknown) {
 export async function executeCheckPost(raw: unknown) {
   const { postUrl } = Schemas.check_post.parse(raw);
 
-  for (const cn of ['ig_posts', 'ig_reels', 'ig_hashtag_posts'] as const) {
-    const doc = await getCollection(cn).findOne({ url: postUrl });
-    if (doc) {
-      const { _id, ...post } = doc;
-      const hoursOld = Math.round((Date.now() - new Date(post.timestamp as string).getTime()) / 3_600_000);
-      return { ...post, isLive: true, hoursOld, cacheHit: true };
-    }
+  // Query all three caches in parallel — first hit wins
+  const [postDoc, reelDoc, hashtagDoc] = await Promise.all([
+    getCollection('ig_posts').findOne({ url: postUrl }),
+    getCollection('ig_reels').findOne({ url: postUrl }),
+    getCollection('ig_hashtag_posts').findOne({ url: postUrl }),
+  ]);
+  const cached = postDoc ?? reelDoc ?? hashtagDoc;
+  if (cached) {
+    const { _id, ...post } = cached;
+    const hoursOld = Math.round((Date.now() - new Date(post.timestamp as string).getTime()) / 3_600_000);
+    return { ...post, isLive: true, hoursOld, cacheHit: true };
   }
 
-  const items = await runActor<Record<string, unknown>>({ actorId: ACTORS.POSTS, input: { directUrls: [postUrl], resultsLimit: 1 } });
+  // Actor requires a valid username to establish its Instagram session
+  const shortcode = postUrl.match(/\/(p|reel|tv)\/([A-Za-z0-9_-]+)/)?.[2] ?? null;
+  const rawItems = await runActor<Record<string, unknown>>({ actorId: ACTORS.POSTS, input: { directUrls: [postUrl], username: ['gnclivewell'], resultsLimit: 30 } });
+  const validItems = rawItems.filter(i => !i.error);
+  const items = shortcode
+    ? validItems.filter(i => {
+        const sc = (i.shortCode ?? i.id ?? '') as string;
+        const u = (i.url ?? '') as string;
+        return sc === shortcode || u.includes(shortcode);
+      })
+    : validItems;
   if (!items.length) throw new ToolError('Post not found', 'NOT_FOUND');
   const post = transformPost(items[0]);
   await getCollection('ig_posts').updateOne({ postId: post.postId }, { $set: { ...post, cachedAt: new Date() } }, { upsert: true });
@@ -279,6 +303,12 @@ export async function executeDiscoverInfluencers(raw: unknown) {
     .slice(0, maxResults)
     .map((r, i) => ({ rank: i + 1, ...r }));
 
+  // Auto-enroll all discovered influencers as prospects (fire-and-forget)
+  autoEnrollBatch(
+    results.map(r => ({ username: r.username as string, followersCount: r.followersCount as number, tags: [`niche:${niche}`, `country:${geo}`] })),
+    'discover_influencers',
+  ).catch(() => {});
+
   return {
     influencers: results,
     totalDiscovered: candidates.length,
@@ -358,6 +388,12 @@ export async function executeExpandNetwork(raw: unknown) {
 
   results.sort((a, b) => (b.followersCount as number) - (a.followersCount as number));
   const ranked = results.slice(0, limit).map((r, i) => ({ rank: i + 1, ...r }));
+
+  // Auto-enroll newly discovered influencers as prospects (fire-and-forget)
+  autoEnrollBatch(
+    (ranked as Record<string, unknown>[]).map(r => ({ username: r.username as string, followersCount: r.followersCount as number, tags: ['source:expand_network', `seeds:${seeds.slice(0, 3).join(',')}`] })),
+    'expand_network',
+  ).catch(() => {});
 
   return {
     influencers: ranked,

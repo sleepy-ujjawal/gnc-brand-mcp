@@ -32,10 +32,11 @@ export function parseMentions(caption: string): string[] {
 
 export function transformPost(raw: Record<string, any>, sourceHashtag?: string): IGPost | IGHashtagPost {
   const caption = raw.caption ?? raw.text ?? '';
-  const likes = raw.likesCount ?? raw.likes ?? 0;
-  const comments = raw.commentsCount ?? raw.comments ?? 0;
-  const views = raw.videoViewCount ?? raw.viewsCount ?? raw.views ?? 0;
-  const plays = raw.videoPlayCount ?? raw.playsCount ?? raw.plays ?? 0;
+  // Instagram returns -1 for likesCount when likes are hidden — clamp to 0
+  const likes = Math.max(0, raw.likesCount ?? raw.likes ?? 0);
+  const comments = Math.max(0, raw.commentsCount ?? raw.comments ?? 0);
+  const views = Math.max(0, raw.videoViewCount ?? raw.viewsCount ?? raw.views ?? 0);
+  const plays = Math.max(0, raw.videoPlayCount ?? raw.playsCount ?? raw.plays ?? 0);
 
   const base: IGPost = {
     postId: raw.id ?? raw.shortCode ?? raw.url ?? '',

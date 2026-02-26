@@ -12,7 +12,10 @@ const ChatRequestSchema = z.object({
   sessionId: z.string().regex(UUID_RE).optional(),
 });
 
-const CHAT_TIMEOUT_MS = 120_000; // 2 min hard cap — Apify max is 90s
+// 3-minute hard cap. discover_influencers and expand_network chain two Apify
+// calls (90s + 120s each), so the old 120s fired before legitimate work finished.
+// The client-side AbortSignal in chat.js is already 180s — keep them in sync.
+const CHAT_TIMEOUT_MS = 180_000;
 
 function asyncHandler(fn: (req: Request, res: Response, next: NextFunction) => Promise<void>) {
   return (req: Request, res: Response, next: NextFunction) => { fn(req, res, next).catch(next); };
@@ -37,13 +40,21 @@ chatRouter.post('/chat', asyncHandler(async (req, res) => {
   let history = sessionId ? getSession(sessionId) : null;
   if (!history) { sessionId = createSession(); history = []; }
 
-  // Hard timeout — prevents infinite hangs from Gemini agentic loops
+  // Hard timeout — also aborts the in-flight Gemini stream so the HTTP
+  // connection is actually torn down, not just the response promise rejected.
+  const controller = new AbortController();
+  let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutHandle = setTimeout(() => {
+      controller.abort();
+      reject(Object.assign(new Error('Request timed out after 180s'), { status: 504 }));
+    }, CHAT_TIMEOUT_MS);
+  });
+
   const result = await Promise.race([
-    orchestrate(message, history),
-    new Promise<never>((_, reject) =>
-      setTimeout(() => reject(Object.assign(new Error('Request timed out after 120s'), { status: 504 })), CHAT_TIMEOUT_MS)
-    ),
-  ]);
+    orchestrate(message, history, undefined, controller.signal),
+    timeoutPromise,
+  ]).finally(() => { if (timeoutHandle) clearTimeout(timeoutHandle); });
 
   setSession(sessionId!, trimHistory(result.history));
 
@@ -110,12 +121,19 @@ chatRouter.post('/chat/stream', asyncHandler(async (req, res) => {
   let clientGone = false;
   req.on('close', () => { clientGone = true; });
 
+  const streamController = new AbortController();
+  let streamTimeoutHandle: ReturnType<typeof setTimeout> | null = null;
+  const streamTimeoutPromise = new Promise<never>((_, reject) => {
+    streamTimeoutHandle = setTimeout(() => {
+      streamController.abort();
+      reject(new Error('Request timed out after 180s'));
+    }, CHAT_TIMEOUT_MS);
+  });
+
   try {
     const result = await Promise.race([
-      orchestrate(message, history, send),
-      new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('Request timed out after 120s')), CHAT_TIMEOUT_MS)
-      ),
+      orchestrate(message, history, send, streamController.signal),
+      streamTimeoutPromise,
     ]);
 
     if (!clientGone) {
@@ -127,6 +145,7 @@ chatRouter.post('/chat/stream', asyncHandler(async (req, res) => {
     const msg = err instanceof Error ? err.message : 'Orchestration failed';
     if (!res.writableEnded) res.write(`data: ${JSON.stringify({ type: 'error', message: msg })}\n\n`);
   } finally {
+    if (streamTimeoutHandle) clearTimeout(streamTimeoutHandle);
     clearInterval(heartbeat);
     res.end();
   }

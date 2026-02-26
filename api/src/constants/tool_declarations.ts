@@ -176,4 +176,99 @@ export const TOOL_DECLARATIONS: FunctionDeclaration[] = [
       },
     },
   },
+
+  // ─── Campaign & Lifecycle Tools ────────────────────────────────────────────
+  {
+    name: 'register_campaign_post',
+    description: 'Register one or more paid Instagram posts under a campaign for tracking. Captures initial snapshot and runs compliance check. Campaign must already exist (created via admin API).',
+    parameters: {
+      type: SchemaType.OBJECT,
+      required: ['campaignId', 'postUrls'],
+      properties: {
+        campaignId: { type: SchemaType.STRING, description: 'Campaign slug identifier' },
+        postUrls: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING }, description: 'Instagram post/reel URLs to register (max 20)' },
+      },
+    },
+  },
+  {
+    name: 'monitor_campaign_post',
+    description: 'Re-check a registered campaign post: detect deletions, caption edits, hashtag removals, and metric changes. Updates compliance status.',
+    parameters: {
+      type: SchemaType.OBJECT,
+      required: ['campaignId', 'postUrl'],
+      properties: {
+        campaignId: { type: SchemaType.STRING, description: 'Campaign slug identifier' },
+        postUrl: { type: SchemaType.STRING, description: 'Instagram post URL to monitor' },
+      },
+    },
+  },
+  {
+    name: 'get_campaign_compliance_report',
+    description: 'Get a compliance summary for all posts in a campaign: compliant vs non-compliant counts, common issues, deleted/edited posts.',
+    parameters: {
+      type: SchemaType.OBJECT,
+      required: ['campaignId'],
+      properties: {
+        campaignId: { type: SchemaType.STRING, description: 'Campaign slug identifier' },
+      },
+    },
+  },
+  {
+    name: 'evaluate_collaboration_performance',
+    description: 'Evaluate how an influencer performed in a specific campaign by comparing their post engagement against hashtag averages.',
+    parameters: {
+      type: SchemaType.OBJECT,
+      required: ['campaignId', 'username'],
+      properties: {
+        campaignId: { type: SchemaType.STRING, description: 'Campaign slug identifier' },
+        username: { type: SchemaType.STRING, description: 'Instagram username to evaluate' },
+      },
+    },
+  },
+  {
+    name: 'get_continuation_recommendation',
+    description: 'Get a weighted recommendation (continue/pause/discontinue) for an influencer based on performance, compliance, organic alignment, saturation, and recency.',
+    parameters: {
+      type: SchemaType.OBJECT,
+      required: ['username'],
+      properties: {
+        username: { type: SchemaType.STRING, description: 'Instagram username to evaluate' },
+      },
+    },
+  },
+  {
+    name: 'get_engagement_timeline',
+    description: 'View engagement metrics over time for a tracked campaign post. Shows likes, comments, views progression across snapshots.',
+    parameters: {
+      type: SchemaType.OBJECT,
+      required: ['postUrl'],
+      properties: {
+        postUrl: { type: SchemaType.STRING, description: 'Instagram post URL (must be registered in a campaign)' },
+        limit: { type: SchemaType.NUMBER, description: 'Max snapshots to return. Default 50.' },
+      },
+    },
+  },
+  {
+    name: 'get_campaign_performance_summary',
+    description: 'Get a full performance summary for ALL collaborators in a campaign at once — engagement scores, performance levels, compliance, and rankings. Use this INSTEAD of calling evaluate_collaboration_performance multiple times.',
+    parameters: {
+      type: SchemaType.OBJECT,
+      required: ['campaignId'],
+      properties: {
+        campaignId: { type: SchemaType.STRING, description: 'Campaign slug identifier' },
+      },
+    },
+  },
+  {
+    name: 'mine_competitor_hashtags',
+    description: 'Find influencers active in competitor hashtags. Aggregates cached hashtag posts to rank creators by engagement. MUST call get_hashtag_posts for competitor hashtags first.',
+    parameters: {
+      type: SchemaType.OBJECT,
+      required: ['competitorHashtags'],
+      properties: {
+        competitorHashtags: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING }, description: 'Competitor hashtags to mine (must already be cached)' },
+        limit: { type: SchemaType.NUMBER, description: 'Max results. Default 10.' },
+      },
+    },
+  },
 ];

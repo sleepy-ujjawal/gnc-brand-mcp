@@ -1,0 +1,29 @@
+[
+  {
+    "username": "tigerjackieshroff",
+    "fullName": "Tiger Shroff",
+    "bio": "Actor | Martial Artist | Fitness Freak | Dancer",
+    "followersCount": 75000000,
+    "followingCount": 300,
+    "postsCount": 850,
+    "isVerified": true
+  },
+  {
+    "username": "fitparul",
+    "fullName": "Parul Garg",
+    "bio": "Fitness Coach | Nutritionist | Helping you get fit | gym | protein | supplement",
+    "followersCount": 520000,
+    "followingCount": 1200,
+    "postsCount": 430,
+    "isVerified": false
+  },
+  {
+    "username": "anupriyakapur",
+    "fullName": "Anupriya Kapur",
+    "bio": "Certified Personal Trainer | Nutrition | Wellness | Mumbai",
+    "followersCount": 280000,
+    "followingCount": 980,
+    "postsCount": 290,
+    "isVerified": false
+  }
+]

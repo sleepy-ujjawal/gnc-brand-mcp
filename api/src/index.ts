@@ -6,8 +6,11 @@ import { connectDB, getDB } from './services/mongo.js';
 import { phase1Router } from './routes/phase1.js';
 import { phase2Router } from './routes/phase2.js';
 import { chatRouter } from './routes/chat.js';
+import { campaignRouter } from './routes/campaigns.js';
+import { influencerRouter } from './routes/influencers.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { sessionCount } from './services/session_store.js';
+import { startScheduler } from './services/scheduler.js';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -39,15 +42,23 @@ app.get('/api/health', async (_req, res) => {
   }
 });
 
+// Campaigns: 20 req/min
+app.use('/api/campaigns', rateLimit({ ...rateLimitOpts, max: 20 }));
+
 app.use('/api/tools', phase1Router);
 app.use('/api/tools', phase2Router);
 app.use('/api', chatRouter);
+app.use('/api/campaigns', campaignRouter);
+app.use('/api/influencers', influencerRouter);
 
 app.use(errorHandler);
 
 async function start() {
   await connectDB();
-  app.listen(PORT, () => console.log('GNC Brand Intel API running on port ' + PORT));
+  app.listen(PORT, () => {
+    console.log('GNC Brand Intel API running on port ' + PORT);
+    startScheduler();
+  });
 }
 
 start().catch(console.error);
