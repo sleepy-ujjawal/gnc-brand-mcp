@@ -30,7 +30,7 @@ function getModel(): GenerativeModel {
   if (!apiKey) throw new Error('GEMINI_API_KEY not configured');
   const client = new GoogleGenerativeAI(apiKey);
   _model = client.getGenerativeModel({
-    model: 'gemini-2.5-flash-preview-04-17',
+    model: 'gemini-2.5-flash',
     systemInstruction: SYSTEM_PROMPT,
     tools: [{ functionDeclarations: TOOL_DECLARATIONS }],
   });
